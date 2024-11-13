@@ -1,58 +1,61 @@
-from flask import Flask, request, render_template_string, redirect
+from flask import Flask, render_template_string, request, jsonify, send_file
 import requests
+from io import BytesIO
 
 app = Flask(__name__)
 
-@app.route('/', methods=['GET'])
-def home():
-    return redirect("/usd?amount=1")
-
-@app.route('/usd', methods=['GET'])
-def get_usd_to_try():
-    amount = request.args.get('amount', default=1, type=float)
-    
-    # Binance API'den USDT/TRY döviz kuru bilgisi al
-    response = requests.get('https://api.binance.com/api/v3/ticker/price?symbol=USDTTRY')
-    
-    # Yanıtı kontrol et
-    if response.status_code != 200:
-        return "API'den veri alınamadı. Lütfen daha sonra tekrar deneyin.", 500
-    
+@app.route('/')
+def index():
+    url = 'https://a.4cdn.org/s/catalog.json'
+    response = requests.get(url)
     data = response.json()
     
-    # Yanıtın içeriğini kontrol et
-    if 'price' not in data:
-        return f"Beklenmeyen yanıt: {data}", 500
+    images = []
+    base_url = 'https://i.4cdn.org/s/'
+
+    for thread in data:
+        for post in thread['threads']:
+            if 'tim' in post and 'ext' in post:
+                img_url = f"{base_url}{post['tim']}{post['ext']}"
+                images.append(img_url)
     
-    # USDT/TRY fiyatını al
-    try_price = float(data['price'])
-    
-    # Hesaplama
-    total_try = amount * try_price
-    
-    # HTML içeriği
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="tr">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>USDT to TRY</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; }}
-            .result {{ font-size: 24px; font-weight: bold; }}
-            .usd-price {{ font-size: 20px; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <h1>USDT to TRY Hesaplama</h1>
-        <div class="result">{amount} USDT = {total_try:.2f} TRY</div>
-        <div class="usd-price">1 USDT = {try_price:.2f} TRY</div>
-    </body>
+    # HTML şablonu
+    html = '''
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>4chan S Board Resimleri</title>
+      </head>
+      <body>
+        <h1>4chan S Board Resimleri</h1>
+        <div>
+          {% for img in images %}
+            <img src="{{ url_for('proxy_image') }}?image_url={{ img }}" alt="Image" style="max-width: 300px; margin: 10px;">
+          {% endfor %}
+        </div>
+      </body>
     </html>
-    """
+    '''
     
-    return render_template_string(html_content)
+    return render_template_string(html, images=images)
+
+@app.route('/proxy-image')
+def proxy_image():
+    image_url = request.args.get('image_url')
+    if not image_url:
+        return jsonify({'error': 'Image URL is required'}), 400
+    
+    try:
+        # Görüntüyü 4chan'den çekiyoruz
+        response = requests.get(image_url)
+        response.raise_for_status()
+        return send_file(BytesIO(response.content), mimetype='image/jpeg')
+    except requests.exceptions.RequestException as e:
+        # Hata mesajını logluyoruz
+        print(f"Error fetching image: {e}")
+        return jsonify({'error': 'Image could not be fetched'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

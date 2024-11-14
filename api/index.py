@@ -32,7 +32,9 @@ def index():
         <h1>4chan S Board Resimleri</h1>
         <div>
           {% for img in images %}
-            <img src="{{ url_for('proxy_image') }}?image_url={{ img }}" alt="Image" style="max-width: 300px; margin: 10px;">
+            <a href="{{ img }}" target="_blank">
+              <img src="{{ url_for('proxy_image') }}?image_url={{ img }}" alt="Image" style="max-width: 300px; margin: 10px;">
+            </a>
           {% endfor %}
         </div>
       </body>
